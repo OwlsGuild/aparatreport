@@ -7,6 +7,14 @@ import { compact } from './lib/compact.mjs';
 import { computeAlerts, nextState } from './lib/alerts.mjs';
 import { median, summarize } from '../bot/tgcloud/lib/stats.js';
 import { duration, fa, pct } from '../bot/tgcloud/lib/format.js';
+import {
+  changesView,
+  detailView,
+  listKeyboard,
+  listView,
+  statsView,
+  topView,
+} from '../bot/tgcloud/lib/render.js';
 
 const NOW = 1_800_000_000;
 const HOUR = 3600;
@@ -162,6 +170,34 @@ assert.equal(calls.length, 2, 'صفحه‌ی دوم نباید درخواست ش
   const out = (await fs.readFile(path.join(dir, 'snapshots', '2024-01.ndjson'), 'utf8')).trim().split('\n');
   assert.equal(out.length, 2, 'باید دو روز → دو ردیف بماند');
   assert.equal(JSON.parse(out[1]).v, 47, 'آخرین ردیف روز باید بماند');
+}
+
+// --- نمایش (بدون شبکه) ----------------------------------------------------
+{
+  const ch = { username: 'x', title: 'کانال تست', profile: { followers: 1200, videoCount: 2, totalViews: 5000 } };
+  const old = Date.now() - 400 * 86400_000;
+  const vids = [
+    { hash: 'a', id: '1', title: 'ویدیوی اول', views: 1000, likes: 50, duration: 300, published: old, tags: 'x,y', category: 'کسب‌وکار' },
+    { hash: 'b', id: '2', title: 'ویدیوی دوم', views: 200, likes: 5, duration: 60, published: old, tags: '', category: '' },
+  ];
+
+  const lv = listView(ch, vids, 'views', 1);
+  assert.ok(lv.text.includes('ویدیوی اول') && lv.text.includes('کانال تست'));
+  assert.equal(lv.pages, 1);
+  const kb = listKeyboard('x', 'views', 1, lv.pages, lv.slice);
+  for (const row of kb.inline_keyboard)
+    for (const btn of row)
+      assert.ok((btn.callback_data ?? '').length <= 64, `callback_data خیلی بلند: ${btn.callback_data}`);
+
+  assert.ok(detailView(vids[0], vids, false).text.includes('بازدید'));
+  assert.ok(detailView(vids[0], vids, true).keyboard.inline_keyboard[1][0].callback_data.startsWith('x:'));
+  assert.ok(statsView(ch, vids).text.includes('کانال تست'));
+  assert.ok(topView(ch, vids, null, null).text.includes('پربازدیدترین'));
+  assert.ok(changesView(ch, null, '24h').text.includes('HISTORY_BASE'));
+  assert.ok(changesView(ch, [{ video: vids[0], dViews: 120, dLikes: 3, hours: 24 }], '۲۴ ساعت').text.includes('+۱۲۰'));
+  // کانال خالی نباید بترکد
+  assert.doesNotThrow(() => statsView(ch, []));
+  assert.doesNotThrow(() => listView(ch, [], 'new', 1));
 }
 
 console.log('✅ همه‌ی بررسی‌ها پاس شد');

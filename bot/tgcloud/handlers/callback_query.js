@@ -35,8 +35,17 @@ export default async function (q) {
   const userId = q.from?.id;
   const [op, a, b] = (q.data ?? '').split(':');
 
-  const answer = (text, alert = false) =>
-    api.answerCallbackQuery({ callback_query_id: q.id, ...(text ? { text, show_alert: alert } : {}) });
+  // پاسخ به callback اختیاری است: اگر توکن‌کوئری منقضی شده باشد نباید کل کار را بترکاند.
+  const answer = async (text, alert = false) => {
+    try {
+      await api.answerCallbackQuery({
+        callback_query_id: q.id,
+        ...(text ? { text, show_alert: alert } : {}),
+      });
+    } catch (e) {
+      console.warn('answerCallbackQuery ناموفق:', e.description ?? e.message);
+    }
+  };
 
   if (!allowed(userId)) return answer('دسترسی نداری', true);
 
