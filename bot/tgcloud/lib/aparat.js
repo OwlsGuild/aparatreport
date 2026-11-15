@@ -76,10 +76,28 @@ export function normalizeVideo(a) {
 }
 
 export function createAparat(http) {
+  // اپارات گاهی 5xx می‌دهد (دیده‌شده: 503). دو تلاش کوتاه، بدون اصرار.
+  // setTimeout در همه‌ی رانتایم‌ها موجود نیست، پس با guard صبر می‌کنیم.
+  const wait = (ms) =>
+    typeof setTimeout === 'function' ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve();
+
   async function json(url) {
-    const res = await http(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`aparat ${res.status}: ${url}`);
-    return res.json();
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await http(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
+        if (res.ok) return res.json();
+        const err = new Error(`aparat ${res.status}: ${url}`);
+        // 4xx (جز 429) خطای پایدار است؛ تکرار بی‌فایده است.
+        if (res.status < 500 && res.status !== 429) err.hard = true;
+        lastError = err;
+      } catch (e) {
+        lastError = e;
+      }
+      if (lastError.hard) throw lastError;
+      if (attempt < 2) await wait(500 * (attempt + 1) ** 2);
+    }
+    throw lastError;
   }
 
   return {

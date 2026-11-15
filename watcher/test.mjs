@@ -156,6 +156,26 @@ assert.equal(prof.followers, 5);
 assert.equal((await ap.videos('x')).length, 1);
 assert.equal(calls.length, 2, 'صفحه‌ی دوم نباید درخواست شود (کمتر از ۱۰ ویدیو)');
 
+// 503 گذرا: باید دوباره تلاش کند. 404: نباید اصرار کند.
+{
+  let hits = 0;
+  const flaky = async () => {
+    hits++;
+    if (hits < 3) return { ok: false, status: 503, json: async () => ({}) };
+    return { ok: true, json: async () => ({ data: { attributes: { username: 'x' } } }) };
+  };
+  assert.equal((await createAparat(flaky).profile('x')).username, 'x');
+  assert.equal(hits, 3);
+
+  let hard = 0;
+  const missing = async () => {
+    hard++;
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  await assert.rejects(() => createAparat(missing).profile('x'), /aparat 404/);
+  assert.equal(hard, 1, 'خطای 404 نباید تکرار شود');
+}
+
 // --- فشرده‌سازی ------------------------------------------------------------
 {
   const fs = await import('node:fs/promises');
