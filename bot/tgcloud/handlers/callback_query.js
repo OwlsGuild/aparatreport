@@ -2,14 +2,7 @@
 import { api, BotApiError } from 'sdk';
 import { allowed, channel, channels, videoDetail, watch } from '../lib/core.js';
 import { deltas } from '../lib/history.js';
-import {
-  SORTS,
-  changesView,
-  detailView,
-  listKeyboard,
-  listView,
-  topView,
-} from '../lib/render.js';
+import { SORTS, changesView, detailView, listView, topView } from '../lib/render.js';
 
 const WINDOWS = { 1: 86400, 7: 604800, 30: 2592000 };
 
@@ -59,9 +52,7 @@ export default async function (q) {
       const sort = SORTS[a] ? a : 'new';
       const page = op === 's' ? 1 : Number(b) || 1;
       await answer();
-      const v = listView(ch, ch.videos, sort, page);
-      v.keyboard = listKeyboard(ch.username, sort, v.page, v.pages, v.slice);
-      return edit(chatId, messageId, v);
+      return edit(chatId, messageId, listView(ch, ch.videos, sort, page));
     }
 
     if (op === 'd') {

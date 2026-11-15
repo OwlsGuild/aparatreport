@@ -8,12 +8,17 @@ import { computeAlerts, nextState } from './lib/alerts.mjs';
 import { median, summarize } from '../bot/tgcloud/lib/stats.js';
 import { duration, fa, pct } from '../bot/tgcloud/lib/format.js';
 import {
+  ACTION_BY_LABEL,
+  MENU,
   changesView,
   detailView,
-  listKeyboard,
+  helpText,
   listView,
+  menuKeyboard,
+  resolveSort,
   statsView,
   topView,
+  watchesView,
 } from '../bot/tgcloud/lib/render.js';
 
 const NOW = 1_800_000_000;
@@ -204,20 +209,36 @@ assert.equal(calls.length, 2, 'صفحه‌ی دوم نباید درخواست ش
   const lv = listView(ch, vids, 'views', 1);
   assert.ok(lv.text.includes('ویدیوی اول') && lv.text.includes('کانال تست'));
   assert.equal(lv.pages, 1);
-  const kb = listKeyboard('x', 'views', 1, lv.pages, lv.slice);
-  for (const row of kb.inline_keyboard)
+  assert.ok(lv.keyboard.inline_keyboard.length >= 3, 'کیبورد باید مرتبسازی و دکمهٔ ویدیو داشته باشد');
+  for (const row of lv.keyboard.inline_keyboard)
     for (const btn of row)
       assert.ok((btn.callback_data ?? '').length <= 64, `callback_data خیلی بلند: ${btn.callback_data}`);
 
+  // دکمههای پاسخ: هر برچسب یک کنش، هر کنش حداقل یک دکمه
+  const actions = MENU.flat().map((b) => b.action);
+  for (const b of MENU.flat()) assert.equal(ACTION_BY_LABEL[b.label], b.action);
+  for (const a of ['stats', 'videos', 'top', 'changes', 'watches', 'help'])
+    assert.ok(actions.includes(a), `کنش ${a} دکمه ندارد`);
+  assert.equal(menuKeyboard.keyboard.length, MENU.length);
+  assert.ok(helpText.includes('راهنما'));
+
+  // نامهای فارسی مرتبسازی
+  assert.equal(resolveSort('بازدید'), 'views');
+  assert.equal(resolveSort('likes'), 'likes');
+  assert.equal(resolveSort('۱۲'), null);
+
   assert.ok(detailView(vids[0], vids, false).text.includes('بازدید'));
-  assert.ok(detailView(vids[0], vids, true).keyboard.inline_keyboard[1][0].callback_data.startsWith('x:'));
+  assert.ok(detailView(vids[0], vids, true).keyboard.inline_keyboard[0][0].callback_data.startsWith('x:'));
   assert.ok(statsView(ch, vids).text.includes('کانال تست'));
   assert.ok(topView(ch, vids, null, null).text.includes('پربازدیدترین'));
   assert.ok(changesView(ch, null, '24h').text.includes('HISTORY_BASE'));
   assert.ok(changesView(ch, [{ video: vids[0], dViews: 120, dLikes: 3, hours: 24 }], '۲۴ ساعت').text.includes('+۱۲۰'));
+  assert.ok(watchesView([], ch).text.includes('پیگیری'));
+  assert.ok(watchesView([{ hash: 'a', title: 'ویدیوی اول' }], ch).text.includes('ویدیوی اول'));
   // کانال خالی نباید بترکد
   assert.doesNotThrow(() => statsView(ch, []));
   assert.doesNotThrow(() => listView(ch, [], 'new', 1));
+  assert.doesNotThrow(() => watchesView([{ hash: 'zz' }], { videos: [] }));
 }
 
 console.log('✅ همه‌ی بررسی‌ها پاس شد');

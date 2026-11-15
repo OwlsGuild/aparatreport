@@ -1,5 +1,5 @@
 // lib/core.js — لایهٔ اپلیکیشن: ترکیب کانفیگ، کلاینت اپارات، کش و دیتابیس.
-// هندلرها فقط با این حرف می‌زنند.
+// هندلرها فقط با این حرف میزنند.
 
 import { db, fetch as http } from 'sdk';
 import { and, eq } from 'sdk/db';
@@ -18,14 +18,7 @@ export function allowed(userId) {
   return !BOT.allowedUsers.length || BOT.allowedUsers.includes(userId);
 }
 
-/** ورودی کاربر (username یا URL یا خالی) → کانال مجاز، یا null */
-export function pickChannel(input) {
-  const want = String(input ?? '').replace(/^@/, '').trim().toLowerCase();
-  if (!want) return CHANNELS[0] ?? null;
-  return CHANNELS.find((c) => c.username.toLowerCase() === want || c.url.toLowerCase() === want) ?? null;
-}
-
-/** پروفایل + ویدیوهای کانال، با کش ۵ دقیقه‌ای */
+/** پروفایل + ویدیوهای کانال، با کش ۵ دقیقهای */
 export async function channel(channelName) {
   const meta = CHANNELS.find((c) => c.username === channelName);
   if (!meta) throw new Error(`کانال در کانفیگ نیست: ${channelName}`);
@@ -36,7 +29,7 @@ export async function channel(channelName) {
   return { ...meta, ...data };
 }
 
-/** جزئیات یک ویدیو (کامنت و تگ فقط اینجا می‌آید) با کش ۱۰ دقیقه‌ای */
+/** جزئیات یک ویدیو (کامنت و تگ فقط اینجا میآید) با کش ۱۰ دقیقهای */
 export const videoDetail = (hash) => cached(`vid:${hash}`, 600, () => aparat.video(hash));
 
 export const watch = {

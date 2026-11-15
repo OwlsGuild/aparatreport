@@ -56,9 +56,11 @@ export function ago(ms) {
 export function jalali(ms) {
   if (!ms) return '';
   try {
-    return new Intl.DateTimeFormat('en-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      .format(new Date(ms))
-      .replace(/\d/g, (d) => FA[+d]);
+    return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(ms));
   } catch {
     return new Date(ms).toISOString().slice(0, 10);
   }
@@ -67,12 +69,6 @@ export function jalali(ms) {
 /** درصد با یک رقم اعشار: 0.0412 → «۴.۱٪» */
 export function pct(x) {
   return `${fa((Number(x) || 0) * 100 < 10 ? (Number(x) * 100).toFixed(1) : Math.round(Number(x) * 100))}٪`;
-}
-
-/** نوار افقی نسبی */
-export function bar(value, max, width = 10) {
-  const filled = max > 0 ? Math.round((Number(value) / max) * width) : 0;
-  return '▇'.repeat(Math.max(0, Math.min(width, filled))) + '▁'.repeat(Math.max(0, width - filled));
 }
 
 export const esc = (s) =>

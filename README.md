@@ -8,19 +8,19 @@
 | بخش | کجاست | کار |
 |---|---|---|
 | `watcher/` | GitHub Actions، هر ساعت | کرال اپارات، ذخیرهٔ تاریخ در `data/`، فرستادن هشدارها با Bot API |
-| `bot/` | Telegram Serverless | دستورها، گزارش‌ها، تحلیل — تاریخ را از `data/` می‌خواند |
+| `bot/` | Telegram Serverless | دستورها، گزارشها، تحلیل — تاریخ را از `data/` میخواند |
 
-چرا تقسیم شده: Telegram Serverless زمان‌بند ندارد و از بیرون هم نمی‌شود در دیتابیسش نوشت.
-تنها راه داشتن قلب تپنده، cron گیت‌هاب است.
+چرا تقسیم شده: Telegram Serverless زمانبند ندارد و از بیرون هم نمیشود در دیتابیسش نوشت.
+تنها راه داشتن قلب تپنده، cron گیتهاب است.
 
-## راه‌اندازی (یک‌بار)
+## راهاندازی (یکبار)
 
-1. کانال را در `bot/tgcloud/lib/config.js` تنظیم کن (این فایل تنها منبع حقیقت است و کرالر هم همان را می‌خواند):
+1. کانال را در `bot/tgcloud/lib/config.js` تنظیم کن (این فایل تنها منبع حقیقت است و کرالر هم همان را میخواند):
    ```js
    export const CHANNELS = [{ username: 'ehsanmansoori', title: 'احسان منصوری', url: '...' }];
    ```
-2. دسترسی‌ها: `BOT.allowedUsers` را پر کن (خالی = همه).
-3. در مخزن گیت‌هاب، در Settings → Secrets and variables → Actions دو سکرت بگذار:
+2. دسترسیها: `BOT.allowedUsers` را پر کن (خالی = همه).
+3. در مخزن گیتهاب، در Settings → Secrets and variables → Actions دو سکرت بگذار:
    - `TG_BOT_TOKEN` — توکن ربات از @BotFather
    - `TG_ALERT_CHAT` — آیدی چت/گروهی که هشدارها برود
 4. برای فعال شدن `/changes` و `/top 7d`: اگر مخزن عمومی است، در `bot/tgcloud/lib/config.js` بگذار:
@@ -32,41 +32,46 @@
    ```bash
    cd bot
    npx tgcloud login     # توکن CLI از @BotFather → بات → Serverless → CLI Access
-   npx tgcloud push      # کد را می‌فرستد
-   npx tgcloud migrate   # جدول‌های watches و cache را می‌سازد
+   npx tgcloud push      # کد را میفرستد
+   npx tgcloud migrate   # جدولهای watches و cache را میسازد
    ```
 
 ## اجرای محلی
 
 ```bash
 node watcher/test.mjs     # بررسی منطق (آفلاین)
-node watcher/run.mjs      # یک اسنپ‌شات واقعی + نوشتن data/
+node watcher/run.mjs      # یک اسنپشات واقعی + نوشتن data/
+node watcher/preview.mjs  # پیشنمایش همهٔ پاسخهای ربات با دادهی واقعی
 ```
 
 برای آزمایش دستورها بدون دیپلوی:
 
 ```bash
 cd bot
-npx tgcloud run handlers/message '/stats'
-npx tgcloud run handlers/message '/videos views'
+npx tgcloud run handlers/message '{ chat: { id: <chatId> }, from: { id: <userId> }, text: "/stats" }'
+npx tgcloud run handlers/message '{ chat: { id: <chatId> }, from: { id: <userId> }, text: "📊 آمار کانال" }'
 npx tgcloud run handlers/callback_query '{ id: "1", data: "l:views:1", from: { id: 1 }, message: { chat: { id: 1 }, message_id: 2 } }'
 ```
 
 ## دستورهای ربات
 
-`/videos [مرتب‌سازی]` · `/video <جست‌وجو>` · `/top [7d|30d]` · `/stats` ·
-`/changes [24h|7d|30d]` · `/watch <جست‌وجو>` · `/watches` · `/unwatch <hash>` · `/id`
+رابط اصلی، **دکمههای پایین صفحه** است (آمار کانال · ویدیوها · برترینها · تغییرات · پیگیریهای من · راهنما).
+زیر پیامها هم دکمههای شیشهای هست: مرتبسازی، صفحهبندی، باز کردن هر ویدیو، پیگیری.
 
-هر متن آزاد هم جست‌وجو در عنوان‌ها است.
+دستورهای تایپی هم برای سازگاری و اسکریپتنویسی زندهاند:
+`/videos [مرتبسازی]` · `/video <جستوجو>` · `/top [7d|30d]` · `/stats` ·
+`/changes [24h|7d|30d]` · `/watch <جستوجو>` · `/watches` · `/unwatch <hash>` · `/id`
 
-## فایل‌های داده
+هر متن آزاد هم جستوجو در عنوانها است.
+
+## فایلهای داده
 
 ```
 data/c/<username>/latest.json          وضعیت فعلی
-data/c/<username>/state.json           پنجره‌های غلتان و هشدارهای اخیر
+data/c/<username>/state.json           پنجرههای غلتان و هشدارهای اخیر
 data/c/<username>/meta.ndjson          فالوور و بازدید کل در زمان
-data/c/<username>/snapshots/YYYY-MM.ndjson   ردیف‌های {t,h,v,l}
+data/c/<username>/snapshots/YYYY-MM.ndjson   ردیفهای {t,h,v,l}
 ```
 
-۷ روز آخر با دقت ساعتی می‌ماند؛ قدیمی‌تر خودکار به یک ردیف در روز فشرده می‌شود
+۷ روز آخر با دقت ساعتی میماند؛ قدیمیتر خودکار به یک ردیف در روز فشرده میشود
 (`watcher/lib/compact.mjs`) تا حجم سالانه در حد یک مگابایت بماند.

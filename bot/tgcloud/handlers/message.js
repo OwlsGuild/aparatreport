@@ -1,29 +1,33 @@
-// handlers/message.js — روتر دستورها. هر پیام متنی وارد می‌شود.
+// handlers/message.js — روتر پیامهای متنی: هم دکمههای پایین صفحه، هم دستورهای تایپی.
 import { api } from 'sdk';
 import { allowed, channel, channels, videoDetail, watch } from '../lib/core.js';
 import { deltas } from '../lib/history.js';
 import {
-  SORTS,
+  ACTION_BY_LABEL,
   changesView,
   detailView,
   helpText,
-  listKeyboard,
   listView,
+  menuKeyboard,
+  resolveSort,
   statsView,
   topView,
+  watchesView,
 } from '../lib/render.js';
 
 const WINDOWS = { '24h': 86400, '7d': 604800, '30d': 2592000 };
 
-async function view(chatId, v) {
+async function send(chatId, text, reply_markup) {
   await api.sendMessage({
     chat_id: chatId,
-    text: v.text,
+    text,
     parse_mode: 'HTML',
     disable_web_page_preview: true,
-    ...(v.keyboard ? { reply_markup: v.keyboard } : {}),
+    ...(reply_markup ? { reply_markup } : {}),
   });
 }
+
+const view = (chatId, v, overlay) => send(chatId, v.text, overlay ?? v.keyboard);
 
 function findVideo(videos, q) {
   const needle = q.trim().toLowerCase();
@@ -39,61 +43,47 @@ export default async function (message) {
   const text = (message.text ?? '').trim();
 
   if (!allowed(userId))
-    return api.sendMessage({ chat_id: chatId, text: `⛔️ این ربات خصوصی است.\nآیدی عددی تو: <code>${userId}</code>`, parse_mode: 'HTML' });
+    return send(chatId, `⛔️ این ربات خصوصی است.\nآیدی عددی تو: <code>${userId}</code>`);
 
   try {
     const [raw, ...rest] = text.split(/\s+/);
     const cmd = (raw ?? '').replace(/@\w+$/, '').toLowerCase();
     const arg = rest.join(' ').trim();
     const primary = channels()[0];
+    if (!primary) return send(chatId, 'هیچ کانالی در config تنظیم نشده است.');
 
-    if (!text || cmd === '/start' || cmd === '/help') {
-      if (!primary) return view(chatId, { text: 'هیچ کانالی در config تنظیم نشده است.' });
+    const action = ACTION_BY_LABEL[text];
+
+    // شروع و راهنما: منوی دکمهای زیر صفحه
+    if (!text || cmd === '/start') {
       const ch = await channel(primary.username);
-      const v = statsView(ch, ch.videos);
-      return api.sendMessage({
-        chat_id: chatId,
-        text: v.text + '\n\n' + helpText,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        reply_markup: v.keyboard,
-      });
+      return view(chatId, statsView(ch, ch.videos), menuKeyboard);
+    }
+    if (action === 'help' || cmd === '/help') return send(chatId, helpText, menuKeyboard);
+
+    if (cmd === '/id') return send(chatId, `آیدی عددی تو: <code>${userId}</code>`);
+
+    if (action === 'videos' || cmd === '/videos') {
+      const ch = await channel(primary.username);
+      const sort = resolveSort(arg) ?? 'new';
+      return view(chatId, listView(ch, ch.videos, sort, 1));
     }
 
-    if (cmd === '/id') return api.sendMessage({ chat_id: chatId, text: `آیدی عددی تو: <code>${userId}</code>`, parse_mode: 'HTML' });
-
-    if (cmd === '/videos') {
-      const ch = await channel(primary.username);
-      const sort = SORTS[arg] ? arg : 'new';
-      const v = listView(ch, ch.videos, sort, 1);
-      v.keyboard = listKeyboard(ch.username, sort, v.page, v.pages, v.slice);
-      return view(chatId, v);
-    }
-
-    if (cmd === '/video') {
-      const ch = await channel(primary.username);
-      const found = findVideo(ch.videos, arg);
-      if (!found) return api.sendMessage({ chat_id: chatId, text: `چیزی با «${arg}» پیدا نشد.` });
-      const detail = await videoDetail(found.hash);
-      return view(chatId, detailView({ ...found, ...detail }, ch.videos, await watch.has(userId, found.hash)));
-    }
-
-    if (cmd === '/top') {
-      const ch = await channel(primary.username);
-      const secs = WINDOWS[arg];
-      if (!secs) return view(chatId, topView(ch, ch.videos, null, null));
-      const rows = await deltas(primary.username, ch.videos, secs);
-      if (!rows)
-        return view(chatId, changesView(ch, null, arg)); // همان پیام راهنمای HISTORY_BASE
-      return view(chatId, topView(ch, ch.videos, rows, arg));
-    }
-
-    if (cmd === '/stats') {
+    if (action === 'stats' || cmd === '/stats') {
       const ch = await channel(primary.username);
       return view(chatId, statsView(ch, ch.videos));
     }
 
-    if (cmd === '/changes') {
+    if (action === 'top' || cmd === '/top') {
+      const ch = await channel(primary.username);
+      const secs = WINDOWS[arg];
+      if (!secs) return view(chatId, topView(ch, ch.videos, null, null));
+      const rows = await deltas(primary.username, ch.videos, secs);
+      if (!rows) return view(chatId, changesView(ch, null, arg));
+      return view(chatId, topView(ch, ch.videos, rows, arg));
+    }
+
+    if (action === 'changes' || cmd === '/changes') {
       const secs = WINDOWS[arg] ?? WINDOWS['24h'];
       const label = arg in WINDOWS ? arg : '24h';
       const ch = await channel(primary.username);
@@ -101,53 +91,48 @@ export default async function (message) {
       return view(chatId, changesView(ch, rows, label));
     }
 
-    if (cmd === '/watch') {
+    if (action === 'watches' || cmd === '/watches') {
+      const rows = await watch.list(userId);
+      const ch = rows.length ? await channel(primary.username) : { videos: [] };
+      return view(chatId, watchesView(rows, ch));
+    }
+
+    if (cmd === '/video') {
       const ch = await channel(primary.username);
       const found = findVideo(ch.videos, arg);
-      if (!found) return api.sendMessage({ chat_id: chatId, text: `چیزی با «${arg}» پیدا نشد.` });
-      const added = await watch.add(userId, ch.username, found);
-      return api.sendMessage({ chat_id: chatId, text: added ? `🔔 دنبال می‌کنم: ${found.title}` : 'از قبل دنبال می‌کردی.' });
+      if (!found) return send(chatId, `چیزی با «${arg}» پیدا نشد.`);
+      const detail = await videoDetail(found.hash);
+      return view(chatId, detailView({ ...found, ...detail }, ch.videos, await watch.has(userId, found.hash)));
     }
 
-    if (cmd === '/unwatch') {
-      const found = arg ? findVideo((await channel(primary.username)).videos, arg) : null;
-      const hash = found?.hash ?? arg;
-      if (!hash) return api.sendMessage({ chat_id: chatId, text: 'مثال: /unwatch jdmy31c' });
-      await watch.remove(userId, hash);
-      return api.sendMessage({ chat_id: chatId, text: '🔕 لغو شد.' });
-    }
-
-    if (cmd === '/watches') {
-      const rows = await watch.list(userId);
-      if (!rows.length) return api.sendMessage({ chat_id: chatId, text: 'چیزی را دنبال نمی‌کنی. با /watch اضافه کن.' });
+    if (cmd === '/watch' || cmd === '/unwatch') {
       const ch = await channel(primary.username);
-      const parts = rows.map((r) => {
-        const cur = ch.videos.find((v) => v.hash === r.hash);
-        const label = cur ? `${cur.title} (اکنون ${cur.views.toLocaleString('en-US')} بازدید)` : `${r.title} (از لیست خارج شد)`;
-        return `• <a href="https://www.aparat.com/v/${r.hash}">${label}</a>`;
-      });
-      return api.sendMessage({
-        chat_id: chatId,
-        text: `🔔 <b>دنبال‌شده‌ها</b>\n\n${parts.join('\n')}`,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      });
+      const found = findVideo(ch.videos, arg);
+      if (cmd === '/watch') {
+        if (!found) return send(chatId, `چیزی با «${arg}» پیدا نشد.`);
+        const added = await watch.add(userId, ch.username, found);
+        return send(chatId, added ? `🔔 پیگیری شد:\n${found.title}` : 'از قبل پیگیری میکردی.');
+      }
+      const hash = found?.hash ?? arg;
+      if (!hash) return send(chatId, 'مثال: /unwatch jdmy31c');
+      await watch.remove(userId, hash);
+      return send(chatId, '🔕 پیگیری لغو شد.');
     }
 
-    // متن آزاد = جست‌وجو
+    // متن آزاد = جستوجو در عنوانها
     const ch = await channel(primary.username);
     const needle = text.toLowerCase();
     const matches = ch.videos.filter((v) => v.title.toLowerCase().includes(needle));
-    if (!matches.length) return api.sendMessage({ chat_id: chatId, text: `چیزی برای «${text}» پیدا نشد. /help را ببین.` });
+    if (!matches.length)
+      return send(chatId, `چیزی برای «${text}» پیدا نشد.\nاز دکمههای پایین صفحه استفاده کن.`, menuKeyboard);
     if (matches.length === 1) {
       const detail = await videoDetail(matches[0].hash);
       return view(chatId, detailView({ ...matches[0], ...detail }, ch.videos, await watch.has(userId, matches[0].hash)));
     }
-    const v = listView({ ...ch, videos: matches }, matches, 'new', 1);
-    v.keyboard = listKeyboard(ch.username, 'new', 1, v.pages, v.slice);
-    return view(chatId, { text: `🔎 <b>${matches.length} نتیجه</b>\n\n` + v.text, keyboard: v.keyboard });
+    const header = `🔎 <b>${matches.length} نتیجه برای</b> «${text}»`;
+    return view(chatId, listView(ch, matches, 'new', 1, header));
   } catch (e) {
     console.error('message handler failed', e);
-    await api.sendMessage({ chat_id: chatId, text: `⚠️ خطا: ${e.message}` });
+    await send(chatId, `⚠️ خطا: ${e.message}`);
   }
 }
