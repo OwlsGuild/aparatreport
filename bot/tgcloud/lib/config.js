@@ -24,6 +24,5 @@ export const ALERTS = {
   stalled: { enabled: true, hours: 48, maxAgeDays: 14, cooldownDays: 3 },
 };
 
-// آدرس پایه‌ی فایل‌های تاریخ برای دستور /changes (مخزن باید عمومی باشد،
-// یا این را به آدرس یک gist مخفی بده). خالی = /changes کار نمی‌کند.
-export const HISTORY_BASE = '';
+// آدرس پایهٔ فایل‌های تاریخ برای دستور /changes (مخزن عمومی است، پس بدون توکن خوانده می‌شود).
+export const HISTORY_BASE = 'https://raw.githubusercontent.com/OwlsGuild/aparatreport/main/data';
