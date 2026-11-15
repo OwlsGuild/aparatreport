@@ -1,0 +1,52 @@
+name: watch
+
+on:
+  schedule:
+    - cron: '0 * * * *' # هر ساعت. GitHub حداقل ۵ دقیقه را قبول می‌کند ولی ساعتی محترمانه‌تر است.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: بررسی منطق
+        run: node watcher/test.mjs
+
+      - name: اسنپ‌شات و هشدار
+        run: node watcher/run.mjs
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_ALERT_CHAT: ${{ secrets.TG_ALERT_CHAT }}
+
+      - name: ثبت تاریخچه در گیت
+        run: |
+          git config user.name "aparat-watch"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || {
+            git commit -m "snapshot $(date -u +'%Y-%m-%dT%H:%MZ')"
+            git push
+          }
+
+      - name: اطلاع از شکست
+        if: failure()
+        run: |
+          curl -s -o /dev/null -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_ALERT_CHAT}" \
+            --data-urlencode "text=⚠️ اجرای رصد آپارات شکست خورد. لاگ Actions را ببین."
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_ALERT_CHAT: ${{ secrets.TG_ALERT_CHAT }}
