@@ -25,6 +25,11 @@ for (const cfg of CHANNELS) {
 
     const prev = await store.readJson(store.stateFile(dir));
 
+    // محافظ: اگر لیست ناقص برگشته باشد، ویدیوهای غایب را «حذف‌شده» تلقی نکنیم.
+    const prevCount = prev ? Object.keys(prev.videos ?? {}).length : 0;
+    if (prevCount && videos.length < prevCount * 0.7)
+      throw new Error(`لیست ناقص برگشت: ${videos.length} از ${prevCount} — اجرا لغو شد تا تاریخچه خراب نشود`);
+
     const next = {
       channel: profile,
       videos: Object.fromEntries(
